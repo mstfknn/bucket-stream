@@ -1,10 +1,10 @@
-# 🚨 Bucket Stream is no longer maintained. If you need support or consultation for your red teaming endeavours, drop me an e-mail paul@darkport.co.uk 🚨
-
 # Bucket Stream
 
 **Find interesting Amazon S3 Buckets by watching certificate transparency logs.**
 
 This tool simply listens to various certificate transparency logs (via certstream) and attempts to find public S3 buckets from permutations of the certificates domain name.
+
+> **Note:** This project has been updated and modernized for Python 3. The original project is no longer maintained by the original author, but has been updated to work with current dependencies and Python versions.
 
 ![Demo](https://i.imgur.com/ZFkIYhD.jpg)
 
@@ -19,60 +19,168 @@ Thanks to my good friend David (@riskobscurity) for the idea.
 
 ## Installation
 
-Python 3.4+ and pip3 are required. Then just:
+**Requirements:** Python 3.7+ (Python 3.8+ recommended)
 
-1. `git clone https://github.com/eth0izzle/bucket-stream.git`
-2. *(optional)* Create a virtualenv with `pip3 install virtualenv && virtualenv .virtualenv && source .virtualenv/bin/activate`
-2. `pip3 install -r requirements.txt`
-3. `python3 bucket-stream.py`
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/eth0izzle/bucket-stream.git
+   cd bucket-stream
+   ```
+
+2. Create and activate a virtual environment (recommended):
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. Configure (optional but recommended):
+   Edit `config.yaml` and add your AWS credentials to avoid rate limiting:
+   ```yaml
+   aws_access_key: 'your-access-key'
+   aws_secret: 'your-secret-key'
+   ```
 
 ## Usage
 
-Simply run `python3 bucket-stream.py`.
+### Basic Usage
 
-If you provide AWS access and secret keys in `config.yaml` Bucket Stream will attempt to access authenticated buckets and identity the buckets owner. **Unauthenticated users are severely rate limited.**
+Simply run:
+```bash
+python bucket-stream.py
+```
 
-    usage: python bucket-stream.py
+If you provide AWS access and secret keys in `config.yaml`, Bucket Stream will attempt to access authenticated buckets and identify the bucket owner. **Unauthenticated users are severely rate limited (max 5 threads).**
 
-    Find interesting Amazon S3 Buckets by watching certificate transparency logs.
+### Command Line Options
 
-    optional arguments:
-      -h, --help            Show this help message and exit
-      --only-interesting    Only log 'interesting' buckets whose contents match
-                            anything within keywords.txt (default: False)
-      --skip-lets-encrypt   Skip certs (and thus listed domains) issued by Let's
-                            Encrypt CA (default: False)
-      -t , --threads        Number of threads to spawn. More threads = more power.
-                            Limited to 5 threads if unauthenticated.
-                            (default: 20)
-      --ignore-rate-limiting
-                            If you ignore rate limits not all buckets will be
-                            checked (default: False)
-      -l, --log             Log found buckets to a file buckets.log (default:
-                            False)
-      -s, --source          Data source to check for bucket permutations. Uses
-                            certificate transparency logs if not specified.
-                            (default: None)
-      -p, --permutations    Path of file containing a list of permutations to try
-                            (see permutations/ dir). (default: permutations\default.txt)
+```
+usage: python bucket-stream.py
+
+Find interesting Amazon S3 Buckets by watching certificate transparency logs.
+
+options:
+  -h, --help            Show this help message and exit
+  --only-interesting    Only log 'interesting' buckets whose contents match
+                        anything within keywords.txt (default: False)
+  --skip-lets-encrypt   Skip certs (and thus listed domains) issued by Let's
+                        Encrypt CA (default: False)
+  -t, --threads         Number of threads to spawn. More threads = more power.
+                        Limited to 5 threads if unauthenticated. (default: 20)
+  --ignore-rate-limiting
+                        If you ignore rate limits not all buckets will be
+                        checked (default: False)
+  -l, --log             Log found buckets to a file buckets.log (default: False)
+  -s, --source SOURCE   Data source to check for bucket permutations. Uses
+                        certificate transparency logs if not specified.
+                        (default: None)
+  -p, --permutations PERMUTATIONS
+                        Path of file containing a list of permutations to try
+                        (see permutations/ dir). (default: permutations/default.txt)
+```
+
+### Usage Examples
+
+**Basic scan with CertStream:**
+```bash
+python bucket-stream.py
+```
+
+**Use extended permutations list (more comprehensive but slower):**
+```bash
+python bucket-stream.py -p permutations/extended.txt
+```
+
+**Scan specific domains from a file:**
+```bash
+python bucket-stream.py --source domains.txt --threads 10
+```
+
+**Only log interesting buckets (matching keywords.txt):**
+```bash
+python bucket-stream.py --only-interesting --log
+```
+
+**Skip Let's Encrypt certificates:**
+```bash
+python bucket-stream.py --skip-lets-encrypt
+```
+
+### Permutations
+
+The tool uses permutation files to generate potential bucket names. Two files are provided:
+
+- **`permutations/default.txt`** - ~30 common permutations (fast, recommended for most use cases)
+- **`permutations/extended.txt`** - 1000+ permutations (comprehensive but slower)
+
+You can create custom permutation files. Each line should contain `%s` where the domain name will be inserted, for example:
+```
+%s-backup
+backup-%s
+%s-data
+data-%s
+```
+
+## Updates & Improvements
+
+This version includes the following updates:
+- ✅ Updated to Python 3.7+ (removed Python 2 compatibility)
+- ✅ Updated all dependencies to latest compatible versions
+- ✅ Fixed CertStream connection issues
+- ✅ Improved error handling and reconnection logic
+- ✅ Enhanced default permutations list
+- ✅ Code modernization and cleanup
 
 ## F.A.Qs
 
 - **Nothing appears to be happening**
 
-   Patience! Sometimes certificate transparency logs can be quiet for a few minutes. Ideally provide AWS secrets in `config.yaml` as this greatly speeds up the checking rate.
+   Patience! Sometimes certificate transparency logs can be quiet for a few minutes. The tool will show "Waiting for Certstream events..." and then "Connected to CertStream!" when connected. Ideally provide AWS secrets in `config.yaml` as this greatly speeds up the checking rate.
+
+- **I'm getting rate limited**
+
+   If you don't have AWS credentials, you're limited to 5 threads. Either:
+   - Add AWS credentials to `config.yaml` (recommended)
+   - Use `--ignore-rate-limiting` flag (may miss some buckets)
+   - Reduce threads with `-t 3`
+
+- **CertStream connection errors**
+
+   The tool automatically retries on connection errors. If you see repeated errors, check your internet connection or try again later.
 
 - **I found something highly confidential**
 
    **Report it** - please! You can usually figure out the owner from the bucket name or by doing some quick reconnaissance. Failing that contact Amazon's support teams.
 
+## Troubleshooting
+
+**Import errors:**
+- Make sure you're using Python 3.7+
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- Use a virtual environment to avoid conflicts
+
+**Connection issues:**
+- CertStream may be temporarily unavailable
+- Check your firewall/proxy settings
+- The tool will automatically retry
+
+**Rate limiting:**
+- Add AWS credentials to `config.yaml` for better performance
+- Without credentials, you're limited to 5 threads
+
 ## Contributing
 
-1. Fork it, baby!
+Contributions are welcome! Please:
+
+1. Fork the repository
 2. Create your feature branch: `git checkout -b my-new-feature`
 3. Commit your changes: `git commit -am 'Add some feature'`
 4. Push to the branch: `git push origin my-new-feature`
-5. Submit a pull request.
+5. Submit a pull request
 
 ## License
 
