@@ -2,36 +2,29 @@
 # -*- coding: utf-8 -*-
 
 import sys
-PY2 = sys.version_info[0] == 2
-PY3 = (sys.version_info[0] >= 3)
-
-#import queue
-if PY2:
-    import Queue as queue
-else:  # PY3
-    import queue
-
+import queue
 import argparse
 import logging
 import os
 import signal
 import time
 import json
-from threading import Lock
-from threading import Event
-from threading import Thread
+from threading import Lock, Event, Thread
 
 import requests
 import tldextract
 import yaml
 from boto3.session import Session
 from certstream.core import CertStreamClient
+import certstream
 from requests.adapters import HTTPAdapter
 from termcolor import cprint
 
 ARGS = argparse.Namespace()
-CONFIG = yaml.safe_load(open("config.yaml"))
-KEYWORDS = [line.strip() for line in open("keywords.txt")]
+with open("config.yaml", "r") as f:
+    CONFIG = yaml.safe_load(f)
+with open("keywords.txt", "r") as f:
+    KEYWORDS = [line.strip() for line in f]
 S3_URL = "http://s3-1-w.amazonaws.com"
 BUCKET_HOST = "%s.s3.amazonaws.com"
 QUEUE_SIZE = CONFIG['queue_size']
@@ -68,18 +61,29 @@ class UpdateThread(Thread):
 class CertStreamThread(Thread):
     def __init__(self, q, *args, **kwargs):
         self.q = q
-        self.c = CertStreamClient(
-            self.process, skip_heartbeats=True, on_open=None, on_error=None)
-
         super().__init__(*args, **kwargs)
 
     def run(self):
         global THREAD_EVENT
-        while not THREAD_EVENT.is_set():
-            cprint("Waiting for Certstream events - this could take a few minutes to queue up...",
+        cprint("Waiting for Certstream events - this could take a few minutes to queue up...",
                "yellow", attrs=["bold"])
-            self.c.run_forever()
-            THREAD_EVENT.wait(10)
+        try:
+            certstream.listen_for_events(
+                self.process, 
+                "wss://certstream.calidog.io/", 
+                skip_heartbeats=True, 
+                on_open=self._on_open, 
+                on_error=self._on_error
+            )
+        except KeyboardInterrupt:
+            pass
+
+    def _on_open(self):
+        cprint("Connected to CertStream! Listening for certificate updates...", "green", attrs=["bold"])
+
+    def _on_error(self, ex):
+        if not isinstance(ex, KeyboardInterrupt):
+            cprint("CertStream connection error: {} - Will retry...".format(ex), "yellow")
 
     def process(self, message, context):
         if message["message_type"] == "heartbeat":
@@ -246,7 +250,8 @@ def get_permutations(domain, subdomain=None):
         "%s-www" % domain,
     ]
 
-    perms.extend([line.strip() % domain for line in open(ARGS.permutations)])
+    with open(ARGS.permutations, "r") as f:
+        perms.extend([line.strip() % domain for line in f])
 
     if subdomain is not None:
         perms.extend([
@@ -314,9 +319,10 @@ def main():
     if ARGS.source is None:
         THREADS.extend([CertStreamThread(q)])
     else:
-        for line in open(ARGS.source):
-            for permutation in get_permutations(line.strip()):
-                q.put(BUCKET_HOST % permutation)
+        with open(ARGS.source, "r") as f:
+            for line in f:
+                for permutation in get_permutations(line.strip()):
+                    q.put(BUCKET_HOST % permutation)
 
     for t in THREADS:
         t.daemon = True
