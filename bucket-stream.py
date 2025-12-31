@@ -24,7 +24,7 @@ ARGS = argparse.Namespace()
 with open("config.yaml", "r") as f:
     CONFIG = yaml.safe_load(f)
 with open("keywords.txt", "r") as f:
-    KEYWORDS = [line.strip() for line in f]
+    KEYWORDS = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
 S3_URL = "http://s3-1-w.amazonaws.com"
 BUCKET_HOST = "%s.s3.amazonaws.com"
 QUEUE_SIZE = CONFIG['queue_size']

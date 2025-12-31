@@ -105,6 +105,8 @@ python bucket-stream.py --source domains.txt --threads 10
 python bucket-stream.py --only-interesting --log
 ```
 
+This will only report buckets that contain files matching keywords in `keywords.txt` (e.g., password files, database dumps, configuration files, etc.).
+
 **Skip Let's Encrypt certificates:**
 ```bash
 python bucket-stream.py --skip-lets-encrypt
@@ -125,6 +127,31 @@ backup-%s
 data-%s
 ```
 
+### Keywords Filtering
+
+The `keywords.txt` file contains a list of sensitive keywords and file extensions used to identify "interesting" buckets when using the `--only-interesting` flag. The file includes:
+
+- **Sensitive keywords**: password, secret, token, api-key, credentials, etc.
+- **Database files**: .sql, .db, .dump, .backup, etc.
+- **Configuration files**: .env, .pem, .key, config files, etc.
+- **Source code**: .git, .svn, source code files, etc.
+- **Archives**: .zip, .tar, .rar, compressed files, etc.
+- **Documents**: .xls, .csv, .pdf, spreadsheets, etc.
+- **Log files**: .log, access logs, error logs, etc.
+- **Virtual machines**: .ova, .vmdk, disk images, etc.
+- **And many more...**
+
+The file contains **200+ keywords** organized by category. You can customize it by adding or removing keywords. Lines starting with `#` are treated as comments and ignored.
+
+**Example keywords.txt:**
+```
+password
+secret
+.sql
+.env
+backup
+```
+
 ## Updates & Improvements
 
 This version includes the following updates:
@@ -132,7 +159,9 @@ This version includes the following updates:
 - ✅ Updated all dependencies to latest compatible versions
 - ✅ Fixed CertStream connection issues
 - ✅ Improved error handling and reconnection logic
-- ✅ Enhanced default permutations list
+- ✅ Enhanced default permutations list (~30 common patterns)
+- ✅ Expanded keywords.txt file (200+ keywords across 15+ categories)
+- ✅ Added comment support in keywords.txt (lines starting with # are ignored)
 - ✅ Code modernization and cleanup
 
 ## F.A.Qs
